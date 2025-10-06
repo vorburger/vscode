@@ -1614,4 +1614,21 @@ export function getLargeFileConfirmationLimit(arg?: string | URI): number {
 	return 1024 * ByteSize.MB;
 }
 
+export async function findBestMatchingResource(
+	fileService: IFileService,
+	resource: URI
+): Promise<URI | null> {
+	const jsonResource = resource.with({ path: `${resource.path}.json` });
+	if (await fileService.exists(jsonResource)) {
+		return jsonResource;
+	}
+
+	const jsoncResource = resource.with({ path: `${resource.path}.jsonc` });
+	if (await fileService.exists(jsoncResource)) {
+		return jsoncResource;
+	}
+
+	return null;
+}
+
 //#endregion

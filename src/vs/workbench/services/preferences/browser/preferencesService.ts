@@ -17,7 +17,7 @@ import { ITextModelService } from '../../../../editor/common/services/resolverSe
 import * as nls from '../../../../nls.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { Extensions, getDefaultValue, IConfigurationRegistry, OVERRIDE_PROPERTY_REGEX } from '../../../../platform/configuration/common/configurationRegistry.js';
-import { FileOperationError, FileOperationResult } from '../../../../platform/files/common/files.js';
+import { FileOperationError, FileOperationResult, findBestMatchingResource, IFileService } from '../../../../platform/files/common/files.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
@@ -76,6 +76,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		@IEditorService private readonly editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@ITextFileService private readonly textFileService: ITextFileService,
+		@IFileService private readonly fileService: IFileService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
@@ -115,12 +116,17 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return this.userDataProfileService.currentProfile.settingsResource;
 	}
 
-	get workspaceSettingsResource(): URI | null {
+	async getWorkspaceSettingsResource(): Promise<URI | null> {
 		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			return null;
 		}
 		const workspace = this.contextService.getWorkspace();
-		return workspace.configuration || workspace.folders[0].toResource(FOLDER_SETTINGS_PATH);
+		if (workspace.configuration) {
+			return findBestMatchingResource(this.fileService, workspace.configuration);
+		}
+		const folder = workspace.folders[0];
+		const folderSettingsPath = folder.toResource(FOLDER_SETTINGS_PATH);
+		return findBestMatchingResource(this.fileService, folderSettingsPath);
 	}
 
 	private createOrGetCachedSettingsEditor2Input(): SettingsEditor2Input {
@@ -132,9 +138,13 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return this._cachedSettingsEditor2Input;
 	}
 
-	getFolderSettingsResource(resource: URI): URI | null {
+	async getFolderSettingsResource(resource: URI): Promise<URI | null> {
 		const folder = this.contextService.getWorkspaceFolder(resource);
-		return folder ? folder.toResource(FOLDER_SETTINGS_PATH) : null;
+		if (folder) {
+			const folderSettingsPath = folder.toResource(FOLDER_SETTINGS_PATH);
+			return findBestMatchingResource(this.fileService, folderSettingsPath);
+		}
+		return null;
 	}
 
 	hasDefaultSettingsContent(uri: URI): boolean {
@@ -292,8 +302,9 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return undefined;
 	}
 
-	openWorkspaceSettings(options: IOpenSettingsOptions = {}): Promise<IEditorPane | undefined> {
-		if (!this.workspaceSettingsResource) {
+	async openWorkspaceSettings(options: IOpenSettingsOptions = {}): Promise<IEditorPane | undefined> {
+		const workspaceSettingsResource = await this.getWorkspaceSettingsResource();
+		if (!workspaceSettingsResource) {
 			this.notificationService.info(nls.localize('openFolderFirst', "Open a folder or workspace first to create workspace or folder settings."));
 			return Promise.reject(null);
 		}
@@ -302,7 +313,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			...options,
 			target: ConfigurationTarget.WORKSPACE
 		};
-		return this.open(this.workspaceSettingsResource, options);
+		return this.open(workspaceSettingsResource, options);
 	}
 
 	async openFolderSettings(options: IOpenSettingsOptions = {}): Promise<IEditorPane | undefined> {
@@ -485,7 +496,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 				return remoteEnvironment ? remoteEnvironment.settingsPath : null;
 			}
 			case ConfigurationTarget.WORKSPACE:
-				return this.workspaceSettingsResource;
+				return this.getWorkspaceSettingsResource();
 			case ConfigurationTarget.WORKSPACE_FOLDER:
 				if (resource) {
 					return this.getFolderSettingsResource(resource);

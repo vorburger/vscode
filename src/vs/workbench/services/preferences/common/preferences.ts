@@ -255,8 +255,8 @@ export interface IPreferencesService {
 	readonly onDidDefaultSettingsContentChanged: Event<URI>;
 
 	userSettingsResource: URI;
-	workspaceSettingsResource: URI | null;
-	getFolderSettingsResource(resource: URI): URI | null;
+	getWorkspaceSettingsResource(): Promise<URI | null>;
+	getFolderSettingsResource(resource: URI): Promise<URI | null>;
 
 	createPreferencesEditorModel(uri: URI): Promise<IPreferencesEditorModel<ISetting> | null>;
 	getDefaultSettingsContent(uri: URI): string | undefined;
