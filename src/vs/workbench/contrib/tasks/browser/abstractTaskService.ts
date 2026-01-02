@@ -535,7 +535,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			disposables.add(notification);
 
 			disposables.add(Event.once(notification.onClick)(() => {
-				this._hostService.focus(targetWindow, { mode: FocusMode.Force });
+				this._hostService.focus(window, { mode: FocusMode.Force });
 			}));
 
 			disposables.add(this._hostService.onDidChangeFocus(focus => {

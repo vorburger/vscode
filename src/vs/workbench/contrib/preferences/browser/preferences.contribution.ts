@@ -1242,9 +1242,13 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 		this._register(this.userDataProfileService.onDidChangeCurrentProfile(() => registerProfileScopedActions()));
 	}
 
-	private updatePreferencesEditorMenuItem() {
+	private async updatePreferencesEditorMenuItem() {
 		const commandId = '_workbench.openWorkspaceSettingsEditor';
 		if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE && !CommandsRegistry.getCommand(commandId)) {
+			const workspaceSettingsResource = await this.preferencesService.getWorkspaceSettingsResource();
+			if (!workspaceSettingsResource) {
+				return;
+			}
 			CommandsRegistry.registerCommand(commandId, () => this.preferencesService.openWorkspaceSettings({ jsonEditor: false }));
 			MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 				command: {
@@ -1252,7 +1256,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					title: OPEN_USER_SETTINGS_UI_TITLE,
 					icon: preferencesOpenSettingsIcon
 				},
-				when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.workspaceSettingsResource!.toString()), WorkbenchStateContext.isEqualTo('workspace'), ContextKeyExpr.not('isInDiffEditor')),
+				when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(workspaceSettingsResource.toString()), WorkbenchStateContext.isEqualTo('workspace'), ContextKeyExpr.not('isInDiffEditor')),
 				group: 'navigation',
 				order: 1
 			});
@@ -1260,10 +1264,14 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 		this.updatePreferencesEditorMenuItemForWorkspaceFolders();
 	}
 
-	private updatePreferencesEditorMenuItemForWorkspaceFolders() {
+	private async updatePreferencesEditorMenuItemForWorkspaceFolders() {
 		for (const folder of this.workspaceContextService.getWorkspace().folders) {
 			const commandId = `_workbench.openFolderSettings.${folder.uri.toString()}`;
 			if (!CommandsRegistry.getCommand(commandId)) {
+				const folderSettingsResource = await this.preferencesService.getFolderSettingsResource(folder.uri);
+				if (!folderSettingsResource) {
+					continue;
+				}
 				CommandsRegistry.registerCommand(commandId, (accessor: ServicesAccessor, ...args: any[]) => {
 					const groupId = getEditorGroupFromArguments(accessor, args)?.id;
 					if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.FOLDER) {
@@ -1278,7 +1286,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 						title: OPEN_USER_SETTINGS_UI_TITLE,
 						icon: preferencesOpenSettingsIcon
 					},
-					when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.getFolderSettingsResource(folder.uri)!.toString()), ContextKeyExpr.not('isInDiffEditor')),
+					when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(folderSettingsResource.toString()), ContextKeyExpr.not('isInDiffEditor')),
 					group: 'navigation',
 					order: 1
 				});
